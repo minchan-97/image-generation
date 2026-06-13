@@ -365,32 +365,32 @@ with col_main:
                         size=img_size,
                         n=1,
                     )
-                    # url 또는 b64_json 처리
-                    img_data = img_resp.data[0]
-                    if img_data.url:
-                        st.image(img_data.url, use_container_width=True)
-                        img_store = img_data.url
-                    elif img_data.b64_json:
-                        import base64
-                        img_bytes = base64.b64decode(img_data.b64_json)
-                        st.image(img_bytes, use_container_width=True)
-                        img_store = img_bytes
-                    else:
-                        st.error("이미지 데이터를 받지 못했어요.")
-                        img_store = None
-
-                    st.caption(f"프롬프트: {final_prompt[:120]}...")
-
-                    st.session_state.history.insert(0, {
-                        "prompt":   prompt,
-                        "enhanced": final_prompt,
-                        "verdict":  final_verdict,
-                        "img":      img_store,
-                        "logp":     logp,
-                    })
+                    img_data  = img_resp.data[0]
+                    img_url   = getattr(img_data, 'url', None)
+                    img_b64   = getattr(img_data, 'b64_json', None)
 
                 except Exception as e:
+                    import traceback
                     st.error(f"이미지 생성 실패: {e}")
+                    st.code(traceback.format_exc())
+                    img_url = img_b64 = None
+
+            # spinner 밖에서 이미지 표시
+            if img_url:
+                st.image(img_url, use_container_width=True)
+                st.caption(f"프롬프트: {final_prompt[:120]}...")
+                st.session_state.history.insert(0, {
+                    "prompt": prompt, "enhanced": final_prompt,
+                    "verdict": final_verdict, "img": img_url, "logp": logp,
+                })
+            elif img_b64:
+                img_bytes = base64.b64decode(img_b64)
+                st.image(img_bytes, use_container_width=True)
+                st.caption(f"프롬프트: {final_prompt[:120]}...")
+                st.session_state.history.insert(0, {
+                    "prompt": prompt, "enhanced": final_prompt,
+                    "verdict": final_verdict, "img": img_bytes, "logp": logp,
+                })
 
     # ── 히스토리 ───────────────────────────────────────────────
     if st.session_state.history:
