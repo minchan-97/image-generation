@@ -285,28 +285,46 @@ with col_main:
 
         client = OpenAI(api_key=api_key)
 
-        with st.spinner("가드레일 체크 중..."):
-            # 1. 가드레일 체크
-            result = st.session_state.engine.evaluate(prompt, logp_thr=logp_thr)
-            verdict = result.get("verdict","SKIP")
-            logp    = result.get("logp", 0.0)
+        with st.spinner("일관성 체크 중..."):
+            corpus_hint = st.session_state.corpus[:600]
 
-            # 2. 일관성 프롬프트 강화
-            corpus_hint = st.session_state.corpus[:400]
+            # 1. LLM으로 일관성 체크 (NM 대신)
+            check_resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role":"system","content":
+                        f"당신은 이미지 설정 일관성을 판단하는 AI입니다.\n"
+                        f"다음은 사용자의 설정입니다:\n{corpus_hint}\n\n"
+                        f"사용자의 요청이 이 설정과 일관성이 있으면 'PASS',"
+                        f"약간 벗어나면 'WARNING',"
+                        f"완전히 다른 스타일/세계관이면 'FATAL'로만 답해주세요."},
+                    {"role":"user","content": prompt}
+                ],
+                max_tokens=10,
+            )
+            verdict = check_resp.choices[0].message.content.strip().upper()
+            if "PASS" in verdict:   verdict = "PASS"
+            elif "WARN" in verdict: verdict = "WARNING"
+            else:                   verdict = "FATAL"
+
+            # 2. NM으로 보조 판정 (참고용)
+            nm_result = st.session_state.engine.evaluate(prompt, logp_thr=logp_thr)
+            nm_verdict = nm_result.get("verdict","SKIP")
+            logp = nm_result.get("logp", 0.0)
+
+            # 3. 프롬프트 강화
             enhanced_prompt = (
-                f"{prompt}\n\n"
-                f"Style consistency rules:\n{corpus_hint}\n\n"
-                f"Maintain exact visual consistency with the above settings."
-            ) if verdict in ("PASS","WARNING") else None
+                f"{prompt}. "
+                f"Style: {corpus_hint[:200]}"
+            )
 
-            # 3. FATAL이면 재시도
             attempts = 1
             final_verdict = verdict
-            final_prompt  = enhanced_prompt or prompt
+            final_prompt  = enhanced_prompt
 
+            # FATAL이면 LLM으로 수정
             if verdict == "FATAL" and max_retry > 1:
                 for i in range(max_retry - 1):
-                    # LLM으로 프롬프트 수정
                     fix_resp = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[
@@ -319,17 +337,29 @@ with col_main:
                         max_tokens=200,
                     )
                     new_prompt = fix_resp.choices[0].message.content.strip()
-                    new_result = st.session_state.engine.evaluate(new_prompt, logp_thr=logp_thr)
+
+                    # 수정된 프롬프트 재검증
+                    recheck = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role":"system","content":
+                                f"설정:\n{corpus_hint}\n\n"
+                                f"요청이 설정과 맞으면 PASS, 아니면 FATAL로만 답해."},
+                            {"role":"user","content": new_prompt}
+                        ],
+                        max_tokens=10,
+                    )
+                    new_verdict = recheck.choices[0].message.content.strip().upper()
                     attempts += 1
-                    final_verdict = new_result.get("verdict","SKIP")
-                    final_prompt  = new_prompt
-                    if final_verdict in ("PASS","WARNING"):
+                    final_verdict = "PASS" if "PASS" in new_verdict else "FATAL"
+                    final_prompt  = new_prompt + f". Style: {corpus_hint[:200]}"
+                    if final_verdict == "PASS":
                         break
 
         # 4. 판정 표시
         tag_cls = {"PASS":"tag-pass","WARNING":"tag-warn","FATAL":"tag-fatal"}.get(final_verdict,"")
         st.markdown(f'<span class="{tag_cls}">{final_verdict}</span> '
-                    f'logP: {logp:+.2f} | {attempts}회 시도',
+                    f'LLM 일관성 체크 | NM logP: {logp:+.2f} | {attempts}회 시도',
                     unsafe_allow_html=True)
 
         if final_verdict == "FATAL":
