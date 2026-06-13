@@ -3,6 +3,17 @@
 ================================================
 참조 이미지/설정 → CoreAI 학습 → 가드레일 → DALL-E 생성
 """
+import sys, os, io
+# Streamlit Cloud UTF-8 강제
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+os.environ['LANG'] = 'en_US.UTF-8'
+try:
+    if hasattr(sys.stdout, 'buffer'):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    if hasattr(sys.stderr, 'buffer'):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+except Exception:
+    pass
 import streamlit as st
 import os, io, base64, pickle, time
 from openai import OpenAI
@@ -138,7 +149,9 @@ with st.sidebar:
                 st.success(f"✅ 학습 완료 ({elapsed:.0f}ms)")
 
             except Exception as e:
+                import traceback
                 st.error(f"학습 실패: {e}")
+                st.code(traceback.format_exc())
 
     st.markdown("---")
     # pkl 저장/로드
