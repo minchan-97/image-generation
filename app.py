@@ -72,8 +72,8 @@ with st.sidebar:
 
     api_key = st.text_input("OpenAI API Key", value=_key,
                              type="password", placeholder="sk-...")
-    model_img = st.selectbox("이미지 모델", ["dall-e-3","dall-e-2"])
-    img_size  = st.selectbox("크기", ["1024x1024","1792x1024","1024x1792"])
+    model_img = st.selectbox("이미지 모델", ["gpt-image-1","gpt-image-1-mini"])
+    img_size  = st.selectbox("크기", ["1024x1024","1536x1024","1024x1536"])
     logp_thr  = st.slider("가드레일 민감도", -16.0, -8.0, -11.5, 0.5)
 
     st.markdown("---")
@@ -372,7 +372,6 @@ with col_main:
                         model=model_img,
                         prompt=final_prompt,
                         size=img_size,
-                        quality="standard",
                         n=1,
                     )
                     img_url = img_resp.data[0].url
