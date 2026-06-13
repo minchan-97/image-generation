@@ -3,17 +3,8 @@
 ================================================
 참조 이미지/설정 → CoreAI 학습 → 가드레일 → DALL-E 생성
 """
-import sys, os, io
-# Streamlit Cloud UTF-8 강제
+import sys, os
 os.environ['PYTHONIOENCODING'] = 'utf-8'
-os.environ['LANG'] = 'en_US.UTF-8'
-try:
-    if hasattr(sys.stdout, 'buffer'):
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    if hasattr(sys.stderr, 'buffer'):
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-except Exception:
-    pass
 import streamlit as st
 import os, io, base64, pickle, time
 from openai import OpenAI
@@ -373,18 +364,19 @@ with col_main:
                         prompt=final_prompt,
                         size=img_size,
                         n=1,
+                        response_format="b64_json",
                     )
-                    img_url = img_resp.data[0].url
-
-                    st.image(img_url, use_container_width=True)
+                    import base64
+                    b64 = img_resp.data[0].b64_json
+                    img_bytes = base64.b64decode(b64)
+                    st.image(img_bytes, use_container_width=True)
                     st.caption(f"프롬프트: {final_prompt[:120]}...")
 
-                    # 기록에 추가
                     st.session_state.history.insert(0, {
                         "prompt":   prompt,
                         "enhanced": final_prompt,
                         "verdict":  final_verdict,
-                        "url":      img_url,
+                        "img":      img_bytes,
                         "logp":     logp,
                     })
 
@@ -401,7 +393,7 @@ with col_main:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
                 tag_cls = {"PASS":"tag-pass","WARNING":"tag-warn","FATAL":"tag-fatal"}.get(h["verdict"],"")
                 st.markdown(f'<span class="{tag_cls}">{h["verdict"]}</span>', unsafe_allow_html=True)
-                if h.get("url"):
-                    st.image(h["url"], use_container_width=True)
+                if h.get("img"):
+                    st.image(h["img"], use_container_width=True)
                 st.caption(h["prompt"][:50])
                 st.markdown('</div>', unsafe_allow_html=True)
