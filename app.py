@@ -364,19 +364,28 @@ with col_main:
                         prompt=final_prompt,
                         size=img_size,
                         n=1,
-                        response_format="b64_json",
                     )
-                    import base64
-                    b64 = img_resp.data[0].b64_json
-                    img_bytes = base64.b64decode(b64)
-                    st.image(img_bytes, use_container_width=True)
+                    # url 또는 b64_json 처리
+                    img_data = img_resp.data[0]
+                    if img_data.url:
+                        st.image(img_data.url, use_container_width=True)
+                        img_store = img_data.url
+                    elif img_data.b64_json:
+                        import base64
+                        img_bytes = base64.b64decode(img_data.b64_json)
+                        st.image(img_bytes, use_container_width=True)
+                        img_store = img_bytes
+                    else:
+                        st.error("이미지 데이터를 받지 못했어요.")
+                        img_store = None
+
                     st.caption(f"프롬프트: {final_prompt[:120]}...")
 
                     st.session_state.history.insert(0, {
                         "prompt":   prompt,
                         "enhanced": final_prompt,
                         "verdict":  final_verdict,
-                        "img":      img_bytes,
+                        "img":      img_store,
                         "logp":     logp,
                     })
 
